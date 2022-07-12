@@ -1,4 +1,6 @@
-# Update
+# reproduction of yolov2&yolov3
+The origin repository is: https://github.com/yjh0410/yolov2-yolov3_PyTorch.git
+
 Recently, I optimize my YOLO project:
 
 https://github.com/yjh0410/PyTorch_YOLO-Family

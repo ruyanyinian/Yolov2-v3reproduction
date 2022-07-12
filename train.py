@@ -31,9 +31,9 @@ from utils.modules import ModelEMA
 def parse_args():
     parser = argparse.ArgumentParser(description='YOLO Detection')
     # basic
-    parser.add_argument('--cuda', action='store_true', default=False,
+    parser.add_argument('--cuda', action='store_true', default=True,
                         help='use cuda.')
-    parser.add_argument('--batch_size', default=16, type=int, 
+    parser.add_argument('--batch_size', default=2, type=int,
                         help='Batch size for training')
     parser.add_argument('--lr', default=1e-3, type=float, 
                         help='initial learning rate')
@@ -47,7 +47,7 @@ def parse_args():
                         help='Momentum value for optim')
     parser.add_argument('--weight_decay', default=5e-4, type=float, 
                         help='Weight decay for SGD')
-    parser.add_argument('--num_workers', default=8, type=int, 
+    parser.add_argument('--num_workers', default=1, type=int,
                         help='Number of workers used in dataloading')
     parser.add_argument('--num_gpu', default=1, type=int, 
                         help='Number of GPUs to train')
@@ -61,11 +61,11 @@ def parse_args():
                         help='visualize target.')
 
     # model
-    parser.add_argument('-v', '--version', default='yolo_v2',
+    parser.add_argument('-v', '--version', default='yolov3',
                         help='yolov2_d19, yolov2_r50, yolov2_slim, yolov3, yolov3_spp, yolov3_tiny')
     
     # dataset
-    parser.add_argument('-root', '--data_root', default='/mnt/share/ssd2/dataset',
+    parser.add_argument('-root', '--data_root', default=r'F:\DL_Data\image_detection\VOC',
                         help='dataset root')
     parser.add_argument('-d', '--dataset', default='voc',
                         help='voc or coco')
@@ -140,7 +140,7 @@ def train():
 
     elif model_name == 'yolov3_tiny':
         from models.yolov3_tiny import YOLOv3tiny as yolo_net
-        cfg = config.yolov3tiny_cfg
+        cfg = config.yolov3_tiny_cfg
     else:
         print('Unknown model name...')
         exit(0)
@@ -170,12 +170,13 @@ def train():
 
     # dataset and evaluator
     if args.dataset == 'voc':
-        data_dir = os.path.join(args.data_root, 'VOCdevkit')
+        train_data_dir = os.path.join(args.data_root, 'train/VOCdevkit')
+        test_data_dir = os.path.join(args.data_root, 'test/VOCdevkit')
         num_classes = 20
-        dataset = VOCDetection(data_dir=data_dir, 
+        dataset = VOCDetection(data_dir=train_data_dir,
                                 transform=SSDAugmentation(train_size))
 
-        evaluator = VOCAPIEvaluator(data_root=data_dir,
+        evaluator = VOCAPIEvaluator(data_root=test_data_dir,
                                     img_size=val_size,
                                     device=device,
                                     transform=BaseTransform(val_size))
@@ -218,7 +219,7 @@ def train():
 
     model = model.to(device)
     # compute FLOPs and Params
-    FLOPs_and_Params(model=model, size=train_size)
+    # FLOPs_and_Params(model=model, size=train_size)
 
     # distributed
     if args.distributed and args.num_gpu > 1:
@@ -290,7 +291,7 @@ def train():
         if epoch in cfg['lr_epoch']:
             tmp_lr = tmp_lr * 0.1
             set_lr(optimizer, tmp_lr)
-    
+        # images = torch.Size([2, 3, 416, 416]), targets=(1,5)
         for iter_i, (images, targets) in enumerate(dataloader):
             # WarmUp strategy for learning rate
             ni = iter_i + epoch * epoch_size
@@ -472,3 +473,4 @@ def vis_data(images, targets, input_size):
 
 if __name__ == '__main__':
     train()
+
