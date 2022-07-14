@@ -218,42 +218,53 @@ def gt_creator(input_size, stride, label_lists, anchor_size):
 # inputsize=416, strides=[8,16,32], label_list就是外面的target,有两个元素,都是待检测物体,一个是(3,5),一个是(1,5)
 # anchor_size 就是9个先验框, 用长宽表示
 def multi_gt_creator(input_size, strides, label_lists, anchor_size):
-  """creator multi scales gt"""
+  """
+  creator multi scales gt
+  整个函数的作用是构造根据anchor和原始的GT Bbox来生成新的参与训练的gt box
+  Args:
+    input_size:
+    strides:
+    label_lists:
+    anchor_size:
+  Returns:
+
+  """
+
   # prepare the all empty gt datas
-  batch_size = len(label_lists) # batchsize=2
-  h = w = input_size
+  batch_size = len(label_lists)  # batchsize=2
+  h = w = input_size # h = w = 416
   num_scale = len(strides)
   gt_tensor = []
-  all_anchor_size = anchor_size
+  all_anchor_size = anchor_size # anchor_size的shape是(9,2)也就是9个anchor框,分别用w,h表示
   anchor_number = len(all_anchor_size) // num_scale # anchor_number = 3
-
+  # gt_tensor: [ndarray(2,52,52,3,11),ndarray(2,26,26,3,11),ndarray(2,13,13,3,11)], question: 3是代表三个尺寸anchor,的维度变成11不太理解
   for s in strides:
-    gt_tensor.append(np.zeros([batch_size, h//s, w//s, anchor_number, 1+1+4+1+4])) # gt_tensor: [ndarray(2,52,52,3,11),ndarray(2,26,26,3,11),ndarray(2,13,13,3,11)], 最后的维度变成11不太理解
+    gt_tensor.append(np.zeros([batch_size, h//s, w//s, anchor_number, 1+1+4+1+4]))
 
-  # generate gt datas
+  # generate gt data, 这个双循环是
   for batch_index in range(batch_size):
     for gt_label in label_lists[batch_index]: # label_lists
       # get a bbox coords
       gt_class = int(gt_label[-1])
       xmin, ymin, xmax, ymax = gt_label[:-1]
       # compute the center, width and height
-      c_x = (xmax + xmin) / 2 * w
-      c_y = (ymax + ymin) / 2 * h
-      box_w = (xmax - xmin) * w
-      box_h = (ymax - ymin) * h
+      c_x = (xmax + xmin) / 2 * w # 377.7279968261719
+      c_y = (ymax + ymin) / 2 * h # 279.55200242996216
+      box_w = (xmax - xmin) * w # 76.54400634765625
+      box_h = (ymax - ymin) * h # 179.71200466156006
 
       if box_w < 1. or box_h < 1.:
         # print('A dirty data !!!')
         continue
 
-        # compute the IoU
-      anchor_boxes = set_anchors(all_anchor_size) # all_anchor_size是9个元素的anchor框. 最终输出的有9个anchor框shape(9,4)
+      # compute the IoU, all_anchor_size是9个元素的anchor框(9,2),也就是9个anchor框是用(w,h)表示,最终进行set anchor之后, shape=(9,4)也就是添加了x,y(0,0)两点
+      anchor_boxes = set_anchors(all_anchor_size) #
       gt_box = np.array([[0, 0, box_w, box_h]])
-      iou = compute_iou(anchor_boxes, gt_box)
+      iou = compute_iou(anchor_boxes, gt_box) # 每一个GT box和9个anchor做iOU的值
 
-      # We only consider those anchor boxes whose IoU is more than ignore thresh,
+      # We only consider those anchor boxes whose IoU is more than ignore thresh, ignore_thresh = 0.5
       iou_mask = (iou > ignore_thresh)
-
+      # 如果没有一个gt框和anchor框的iou大于0.5的话:
       if iou_mask.sum() == 0:
         # We assign the anchor box with highest IoU score.
         index = np.argmax(iou)
@@ -275,7 +286,7 @@ def multi_gt_creator(input_size, strides, label_lists, anchor_size):
         tw = np.log(box_w / p_w)
         th = np.log(box_h / p_h)
         weight = 2.0 - (box_w / w) * (box_h / h)
-
+        #
         if grid_y < gt_tensor[s_indx].shape[1] and grid_x < gt_tensor[s_indx].shape[2]:
           gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 0] = 1.0
           gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 1] = gt_class
@@ -290,38 +301,38 @@ def multi_gt_creator(input_size, strides, label_lists, anchor_size):
         # iou_ = iou * iou_mask
 
         # We get the index of the best IoU
-        best_index = np.argmax(iou)
+        best_index = np.argmax(iou)  # 我们取出最大值的iOU对应的index, 比如这里的best_index=3
         for index, iou_m in enumerate(iou_mask):
           if iou_m:
             if index == best_index:
               # s_indx, ab_ind = index // num_scale, index % num_scale
-              s_indx = index // anchor_number
-              ab_ind = index - s_indx * anchor_number
+              s_indx = index // anchor_number # 这个操作是不是在看当前的index是属于(大,中,小)这三个尺寸的哪一个? 3//3=1
+              ab_ind = index - s_indx * anchor_number  # ab_ind=0
               # get the corresponding stride
-              s = strides[s_indx]
+              s = strides[s_indx] # 说明当前的anchor是属于中等尺寸的anchor,因为s=16
               # get the corresponding anchor box
               p_w, p_h = anchor_boxes[index, 2], anchor_boxes[index, 3]
               # compute the gride cell location
-              c_x_s = c_x / s
-              c_y_s = c_y / s
-              grid_x = int(c_x_s)
+              c_x_s = c_x / s # c_x是GT在(416,416)图像上的x的绝对坐标, 然后这里进行了16倍的降采样
+              c_y_s = c_y / s # c_x是GT在(416,416)图像上的x的绝对坐标, 然后这里进行了16倍的降采样
+              grid_x = int(c_x_s) # 进行向下取整
               grid_y = int(c_y_s)
-              # compute gt labels
-              tx = c_x_s - grid_x
+              # compute gt labels, 这里是构造GT的offset
+              tx = c_x_s - grid_x  # Question: 根据公式 grid_x表示的是anchor的x坐标吗? 而这个貌似减去了当前所在网格的坐标
               ty = c_y_s - grid_y
               tw = np.log(box_w / p_w)
               th = np.log(box_h / p_h)
               weight = 2.0 - (box_w / w) * (box_h / h)
-
+              # 17 < 26 and 23 < 26
               if grid_y < gt_tensor[s_indx].shape[1] and grid_x < gt_tensor[s_indx].shape[2]:
-                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 0] = 1.0
-                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 1] = gt_class
-                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 2:6] = np.array([tx, ty, tw, th])
-                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 6] = weight
+                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 0] = 1.0 # 这里的1.0是confidence
+                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 1] = gt_class # 赋值具体的label,比如这里是13
+                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 2:6] = np.array([tx, ty, tw, th]) # 这里是赋值偏移量
+                gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 6] = weight #
                 gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 7:] = np.array([xmin, ymin, xmax, ymax])
 
             else:
-              # we ignore other anchor boxes even if their iou scores are higher than ignore thresh
+              # we ignore other anchor boxes even if their iou scores are higher than ignore thresh,
               # s_indx, ab_ind = index // num_scale, index % num_scale
               s_indx = index // anchor_number
               ab_ind = index - s_indx * anchor_number
@@ -330,8 +341,8 @@ def multi_gt_creator(input_size, strides, label_lists, anchor_size):
               c_y_s = c_y / s
               grid_x = int(c_x_s)
               grid_y = int(c_y_s)
-              gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 0] = -1.0
-              gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 6] = -1.0
+              gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 0] = -1.0  # 这个是把其他的confidence设置成了-1, 也就是不参与objloss的计算
+              gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 6] = -1.0  # 这个是把weight设置成了-1, 也就是不参与objloss的计算
 
   gt_tensor = [gt.reshape(batch_size, -1, 1+1+4+1+4) for gt in gt_tensor]
   gt_tensor = np.concatenate(gt_tensor, 1)

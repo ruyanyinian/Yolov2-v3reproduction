@@ -29,6 +29,7 @@ from utils.modules import ModelEMA
 
 torch.manual_seed(100)
 
+
 def parse_args():
   parser = argparse.ArgumentParser(description='YOLO Detection')
   # basic
@@ -66,7 +67,7 @@ def parse_args():
                       help='yolov2_d19, yolov2_r50, yolov2_slim, yolov3, yolov3_spp, yolov3_tiny')
 
   # dataset
-  parser.add_argument('-root', '--data_root', default=r'F:\DL_Data\image_detection\VOC',
+  parser.add_argument('-root', '--data_root', default=r'/home/qy/data/image_detection/VOC',
                       help='dataset root')
   parser.add_argument('-d', '--dataset', default='voc',
                       help='voc or coco')
@@ -335,7 +336,7 @@ def train():
                                    label_lists=targets,
                                    anchor_size=anchor_size
                                    )
-      else: # 这个函数是不是根据GT来给anchor进行正负样本的分配, 然后把正样本anchor作为真实值参与监督
+      else:  # 这个函数是不是根据GT来给anchor进行正负样本的分配, 然后把正样本anchor作为真实值参与监督
         targets = tools.multi_gt_creator(input_size=train_size,
                                          strides=net.stride,
                                          label_lists=targets,
