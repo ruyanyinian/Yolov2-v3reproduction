@@ -264,7 +264,7 @@ def multi_gt_creator(input_size, strides, label_lists, anchor_size):
 
       # We only consider those anchor boxes whose IoU is more than ignore thresh, ignore_thresh = 0.5
       iou_mask = (iou > ignore_thresh)
-      # 如果没有一个gt框和anchor框的iou大于0.5的话:
+      # 如果没有一个gt框和anchor框的iou大于0.5的话, 也就是负样本的链路
       if iou_mask.sum() == 0:
         # We assign the anchor box with highest IoU score.
         index = np.argmax(iou)
@@ -304,7 +304,7 @@ def multi_gt_creator(input_size, strides, label_lists, anchor_size):
         best_index = np.argmax(iou)  # 我们取出最大值的iOU对应的index, 比如这里的best_index=3
         for index, iou_m in enumerate(iou_mask):
           if iou_m:
-            if index == best_index:
+            if index == best_index:  # 正样本
               # s_indx, ab_ind = index // num_scale, index % num_scale
               s_indx = index // anchor_number # 这个操作是不是在看当前的index是属于(大,中,小)这三个尺寸的哪一个? 3//3=1
               ab_ind = index - s_indx * anchor_number  # ab_ind=0
@@ -331,7 +331,7 @@ def multi_gt_creator(input_size, strides, label_lists, anchor_size):
                 gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 6] = weight #
                 gt_tensor[s_indx][batch_index, grid_y, grid_x, ab_ind, 7:] = np.array([xmin, ymin, xmax, ymax])
 
-            else:
+            else:  # 忽略样本, 不参与obj_loss的计算
               # we ignore other anchor boxes even if their iou scores are higher than ignore thresh,
               # s_indx, ab_ind = index // num_scale, index % num_scale
               s_indx = index // anchor_number

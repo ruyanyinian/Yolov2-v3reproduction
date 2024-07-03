@@ -67,7 +67,7 @@ def parse_args():
                       help='yolov2_d19, yolov2_r50, yolov2_slim, yolov3, yolov3_spp, yolov3_tiny')
 
   # dataset
-  parser.add_argument('-root', '--data_root', default=r'/home/qy/data/image_detection/VOC',
+  parser.add_argument('-root', '--data_root', default=r'F:/DL_Data/image_detection/VOC',
                       help='dataset root')
   parser.add_argument('-d', '--dataset', default='voc',
                       help='voc or coco')
